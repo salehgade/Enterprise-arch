@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Library Management System</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: #f8f9fa;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      background-color: #007bff;
+      color: white;
+      padding: 20px;
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      padding: 20px;
+      justify-content: center;
+    }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      width: 300px;
+      flex-grow: 1;
+    }
+    .card h2 {
+      margin-top: 0;
+      color: #333;
+    }
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .list-item {
+      border-bottom: 1px solid #eee;
+      padding: 5px 0;
+    }
+    .list-item strong {
+      color: #007bff;
+    }
+  </style>
+</head>
+<body>
+<header>📚 Library Management System</header>
+<div class="container">
+  <div class="card">
+    <h2>Add Book</h2>
+    <input type="text" id="bookTitle" placeholder="Title" />
+    <input type="text" id="bookAuthor" placeholder="Author" />
+    <input type="number" id="bookYear" placeholder="Year" />
+    <button onclick="addBook()">Add Book</button>
+  </div>
+
+  <div class="card">
+    <h2>Register Member</h2>
+    <input type="text" id="memberName" placeholder="Name" />
+    <button onclick="addMember()">Register Member</button>
+  </div>
+
+  <div class="card">
+    <h2>Submit Request</h2>
+    <select id="requestType">
+      <option value="issue">Issue Book</option>
+      <option value="return">Return Book</option>
+      <option value="enquiry">Enquiry</option>
+    </select>
+    <input type="text" id="requestMember" placeholder="Member Name" />
+    <input type="text" id="requestBook" placeholder="Book Title" />
+    <button onclick="submitRequest()">Submit Request</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="card">
+    <h2>📖 Books</h2>
+    <div id="bookList"></div>
+  </div>
+  <div class="card">
+    <h2>👤 Members</h2>
+    <div id="memberList"></div>
+  </div>
+  <div class="card">
+    <h2>📄 Requests</h2>
+    <div id="requestList"></div>
+  </div>
+</div>
+
+<script>
+  let books = JSON.parse(localStorage.getItem('books') || '[]');
+  let members = JSON.parse(localStorage.getItem('members') || '[]');
+  let issuedBooks = JSON.parse(localStorage.getItem('issuedBooks') || '[]');
+  let requests = JSON.parse(localStorage.getItem('requests') || '[]');
+
+  function saveData() {
+    localStorage.setItem('books', JSON.stringify(books));
+    localStorage.setItem('members', JSON.stringify(members));
+    localStorage.setItem('issuedBooks', JSON.stringify(issuedBooks));
+    localStorage.setItem('requests', JSON.stringify(requests));
+  }
+
+  function addBook() {
+    const title = document.getElementById('bookTitle').value;
+    const author = document.getElementById('bookAuthor').value;
+    const year = document.getElementById('bookYear').value;
+    if (title && author && year) {
+      books.push({ title, author, year, available: true });
+      saveData();
+      renderBooks();
+    }
+  }
+
+  function addMember() {
+    const name = document.getElementById('memberName').value;
+    if (name) {
+      members.push({ name, borrowed: [] });
+      saveData();
+      renderMembers();
+    }
+  }
+
+  function submitRequest() {
+    const type = document.getElementById('requestType').value;
+    const memberName = document.getElementById('requestMember').value;
+    const bookTitle = document.getElementById('requestBook').value;
+
+    let status = 'New';
+    const member = members.find(m => m.name === memberName);
+    const book = books.find(b => b.title === bookTitle);
+
+    if (!member) return alert('Invalid member.');
+    if (!book && type !== 'enquiry') return alert('Book not found.');
+
+    if (type === 'issue') {
+      if (book.available) {
+        member.borrowed.push({ title: bookTitle, date: new Date().toISOString() });
+        issuedBooks.push({ member: memberName, title: bookTitle, date: new Date().toISOString() });
+        book.available = false;
+        status = 'Approved';
+      } else {
+        status = 'Rejected';
+      }
+    } else if (type === 'return') {
+      const issueRecord = issuedBooks.find(i => i.member === memberName && i.title === bookTitle);
+      if (issueRecord) {
+        const issueDate = new Date(issueRecord.date);
+        const now = new Date();
+        const diff = Math.ceil((now - issueDate) / (1000 * 60 * 60 * 24));
+        if (diff > 7) alert(`Returned with fine: ${diff - 7} day(s)`);
+        else alert('Returned on time.');
+
+        member.borrowed = member.borrowed.filter(b => b.title !== bookTitle);
+        issuedBooks = issuedBooks.filter(i => !(i.member === memberName && i.title === bookTitle));
+        book.available = true;
+        status = 'Completed';
+      } else {
+        status = 'Not Found';
+      }
+    } else if (type === 'enquiry') {
+      status = book ? (book.available ? 'Available' : 'Issued') : 'Not Found';
+    }
+
+    requests.push({ type, member: memberName, book: bookTitle, status, date: new Date().toLocaleString() });
+    saveData();
+    renderBooks();
+    renderMembers();
+    renderRequests();
+  }
+
+  function renderBooks() {
+    const list = document.getElementById('bookList');
+    list.innerHTML = books.map(book => `
+      <div class="list-item">
+        <strong>${book.title}</strong> by ${book.author} (${book.year}) - 
+        <em>${book.available ? 'Available' : 'Issued'}</em>
+      </div>`).join('');
+  }
+
+  function renderMembers() {
+    const list = document.getElementById('memberList');
+    list.innerHTML = members.map(member => `
+      <div class="list-item">
+        <strong>${member.name}</strong> - Borrowed: ${member.borrowed.map(b => b.title).join(', ') || 'None'}
+      </div>`).join('');
+  }
+
+  function renderRequests() {
+    const list = document.getElementById('requestList');
+    list.innerHTML = requests.map(req => `
+      <div class="list-item">
+        [${req.date}] <strong>${req.type.toUpperCase()}</strong> - ${req.member} / ${req.book} → <em>${req.status}</em>
+      </div>`).join('');
+  }
+
+  renderBooks();
+  renderMembers();
+  renderRequests();
+</script>
+</body>
+</html>
